@@ -1,6 +1,6 @@
-package com.example.inventoryservice.config;
+package ma.lahjaily.inventoryservice.config;
 
-import com.example.inventoryservice.entities.Product;
+import ma.lahjaily.inventoryservice.entities.Product;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.rest.core.config.RepositoryRestConfiguration;
 import org.springframework.data.rest.webmvc.config.RepositoryRestConfigurer;

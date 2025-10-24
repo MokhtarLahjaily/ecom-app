@@ -1,4 +1,4 @@
-package com.example.inventoryservice.entities;
+package ma.lahjaily.inventoryservice.entities;
 
 import org.springframework.data.rest.core.config.Projection;
 

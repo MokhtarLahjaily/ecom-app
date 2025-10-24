@@ -1,4 +1,4 @@
-package com.example.inventoryservice.entities;
+package ma.lahjaily.inventoryservice.entities;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

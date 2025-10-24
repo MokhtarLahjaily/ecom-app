@@ -1,7 +1,7 @@
-package com.example.inventoryservice;
+package ma.lahjaily.inventoryservice;
 
-import com.example.inventoryservice.entities.Product;
-import com.example.inventoryservice.repository.ProductRepository;
+import ma.lahjaily.inventoryservice.entities.Product;
+import ma.lahjaily.inventoryservice.repository.ProductRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

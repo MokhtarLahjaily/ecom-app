@@ -17,31 +17,9 @@ public class InventoryServiceApplication {
 	}
 
 	@Bean
-	CommandLineRunner init(ProductRepository repository, ProductRepository productRepository) {
+	CommandLineRunner init(ProductRepository repository) {
 		return args -> {
-			productRepository.save(Product.builder()
-					.id(UUID.randomUUID().toString())
-					.name("Computer")
-					.price(3200)
-					.quantity(12)
-					.build());
-			productRepository.save(Product.builder()
-					.id(UUID.randomUUID().toString())
-					.name("Printer")
-					.price(1299)
-					.quantity(10)
-					.build());
-			productRepository.save(Product.builder()
-					.id(UUID.randomUUID().toString())
-					.name("SmartPhone")
-					.price(5400)
-					.quantity(8)
-					.build());
-			productRepository.findAll().forEach(p -> {
-				System.out.println(p.toString());
-			});
-
-
+			// Seeding removed: products should be created per user (ownerId) via API.
 		};
 	}
 

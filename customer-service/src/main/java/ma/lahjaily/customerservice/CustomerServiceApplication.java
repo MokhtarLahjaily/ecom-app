@@ -14,29 +14,6 @@ public class CustomerServiceApplication {
         SpringApplication.run(CustomerServiceApplication.class, args);
     }
 
-    @Bean
-    CommandLineRunner commandLineRunner(CustomerRepository customerRepository) {
-        return args -> {
-            customerRepository.save(Customer.builder()
-                            .name("Mohamed")
-                            .email("mohamed@email.com")
-                    .build());
-            customerRepository.save(Customer.builder()
-                    .name("Imane")
-                    .email("imane@email.com")
-                    .build());
-            customerRepository.save(Customer.builder()
-                    .name("Yassine")
-                    .email("yassine@email.com")
-                    .build());
-            customerRepository.findAll().forEach(c -> {
-                System.out.println("===========================");
-                System.out.println(c.getId());
-                System.out.println(c.getName());
-                System.out.println(c.getEmail());
-                System.out.println("===========================");
-            });
-        };
-    }
+    // Seeding removed: customers are created dynamically from Keycloak users on first access.
 
 }

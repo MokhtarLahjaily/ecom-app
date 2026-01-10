@@ -15,6 +15,8 @@ import lombok.*;
 public class Customer {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private String keycloakId;
+    private String username;
     private String name;
     private String email;
 }

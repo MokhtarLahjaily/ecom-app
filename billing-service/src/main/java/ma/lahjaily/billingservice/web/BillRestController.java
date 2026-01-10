@@ -6,6 +6,7 @@ import ma.lahjaily.billingservice.feign.CustomerRestClient;
 import ma.lahjaily.billingservice.feign.ProductRestClient;
 import ma.lahjaily.billingservice.repository.BillRepository;
 import ma.lahjaily.billingservice.repository.ProductItemRepository;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,12 +29,20 @@ public class BillRestController {
         this.productRestClient = productRestClient;
     }
     @GetMapping(path = "/bills/{id}")
-    public Bill getBill(@PathVariable Long id){
+    public Bill getBill(@PathVariable Long id, JwtAuthenticationToken jwt){
+        String authorization = "Bearer " + jwt.getToken().getTokenValue();
         Bill bill = billRepository.findById(id).get();
-        bill.setCustomer(customerRestClient.getCustomerById(bill.getCustomerId()));
+        bill.setCustomer(customerRestClient.getCustomerById(bill.getCustomerId(), authorization));
         bill.getProductItems().forEach(productItem -> {
-            productItem.setProduct(productRestClient.getProductById(productItem.getProductId()));
+            productItem.setProduct(productRestClient.getProductById(productItem.getProductId(), authorization));
         });
         return bill;
+    }
+
+    @GetMapping(path = "/bills/me")
+    public java.util.List<Bill> myBills(JwtAuthenticationToken jwt) {
+        String authorization = "Bearer " + jwt.getToken().getTokenValue();
+        Long customerId = customerRestClient.getCurrentCustomer(authorization).getId();
+        return billRepository.findByCustomerId(customerId);
     }
 }

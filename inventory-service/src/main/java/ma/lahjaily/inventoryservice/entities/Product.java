@@ -17,4 +17,6 @@ public class Product {
     private String name;
     private double price;
     private int quantity;
+    // Added ownerId to associate with Keycloak user
+    private String ownerId;
 }

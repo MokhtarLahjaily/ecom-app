@@ -1,15 +1,18 @@
 package ma.lahjaily.billingservice.web;
 
 
+import ma.lahjaily.billingservice.dto.CreateBillRequest;
 import ma.lahjaily.billingservice.entities.Bill;
+import ma.lahjaily.billingservice.entities.ProductItem;
 import ma.lahjaily.billingservice.feign.CustomerRestClient;
 import ma.lahjaily.billingservice.feign.ProductRestClient;
 import ma.lahjaily.billingservice.repository.BillRepository;
 import ma.lahjaily.billingservice.repository.ProductItemRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Date;
 
 @RestController
 public class BillRestController {
@@ -44,5 +47,44 @@ public class BillRestController {
         String authorization = "Bearer " + jwt.getToken().getTokenValue();
         Long customerId = customerRestClient.getCurrentCustomer(authorization).getId();
         return billRepository.findByCustomerId(customerId);
+    }
+
+    /**
+     * Crée une nouvelle facture pour le client authentifié.
+     * L'ID du client est récupéré automatiquement via le token JWT.
+     */
+    @PostMapping(path = "/bills")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Bill createBill(@RequestBody CreateBillRequest request, JwtAuthenticationToken jwt) {
+        String authorization = "Bearer " + jwt.getToken().getTokenValue();
+        
+        // Récupérer l'ID du client depuis le token JWT
+        Long customerId = customerRestClient.getCurrentCustomer(authorization).getId();
+        
+        // Créer la facture avec la date actuelle
+        Bill bill = Bill.builder()
+                .customerId(customerId)
+                .billingDate(new Date())
+                .build();
+        
+        // Sauvegarder d'abord la facture pour obtenir son ID
+        bill = billRepository.save(bill);
+        
+        // Créer et sauvegarder les items de produit
+        final Bill savedBill = bill;
+        if (request.getProductItems() != null) {
+            request.getProductItems().forEach(item -> {
+                ProductItem productItem = ProductItem.builder()
+                        .productId(item.getProductId())
+                        .quantity(item.getQuantity())
+                        .unitPrice(item.getUnitPrice())
+                        .bill(savedBill)
+                        .build();
+                productItemRepository.save(productItem);
+            });
+        }
+        
+        // Recharger la facture avec ses items
+        return billRepository.findById(bill.getId()).orElse(bill);
     }
 }

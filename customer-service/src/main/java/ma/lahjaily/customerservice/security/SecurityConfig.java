@@ -19,6 +19,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/eureka/**", "/actuator/**").permitAll()
                         .requestMatchers("/api/customers/search/current-user").authenticated()
+                        // Allow authenticated service-to-service calls to read individual customers
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/customers/{id}").authenticated()
+                        // List all customers requires ADMIN
                         .requestMatchers("/api/customers/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter)));

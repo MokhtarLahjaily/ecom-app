@@ -10,10 +10,11 @@ services:
       - "8761:8761"
     networks:
       - emsi-network
+    restart: on-failure
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8761/actuator/health" ]
       interval: 10s
-      retries: 10
+      retries: 15
       start_period: 60s
 
   config-service:
@@ -23,14 +24,21 @@ services:
       - "9999:9999"
     networks:
       - emsi-network
+    restart: on-failure
     depends_on:
       discovery-service:
-        condition: service_started
+        condition: service_healthy
     environment:
       - SPRING_PROFILES_ACTIVE=native
       - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS=classpath:/config-repo,file:./config-repo
+      - EUREKA_HOST=discovery-service
     volumes:
       - ./config-repo:/config-repo
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9999/actuator/health" ]
+      interval: 10s
+      retries: 15
+      start_period: 60s
 
   # --- Microservices ---
 
@@ -39,49 +47,52 @@ services:
     container_name: customer-service
     networks:
       - emsi-network
+    restart: on-failure
     depends_on:
       config-service:
-        condition: service_started
+        condition: service_healthy
       discovery-service:
         condition: service_healthy
       keycloak:
-        condition: service_started
+        condition: service_healthy
     environment:
       - SPRING_CONFIG_IMPORT=optional:configserver:http://config-service:9999
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8081/actuator/health" ]
       interval: 10s
-      retries: 10
-      start_period: 40s
+      retries: 15
+      start_period: 60s
 
   inventory-service:
     build: ./inventory-service
     container_name: inventory-service
     networks:
       - emsi-network
+    restart: on-failure
     depends_on:
       config-service:
-        condition: service_started
+        condition: service_healthy
       discovery-service:
         condition: service_healthy
       keycloak:
-        condition: service_started
+        condition: service_healthy
     environment:
       - SPRING_CONFIG_IMPORT=optional:configserver:http://config-service:9999
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8082/actuator/health" ]
       interval: 10s
-      retries: 10
-      start_period: 40s
+      retries: 15
+      start_period: 60s
 
   billing-service:
     build: ./billing-service
     container_name: billing-service
     networks:
       - emsi-network
+    restart: on-failure
     depends_on:
       config-service:
-        condition: service_started
+        condition: service_healthy
       discovery-service:
         condition: service_healthy
       customer-service:
@@ -89,14 +100,14 @@ services:
       inventory-service:
         condition: service_healthy
       keycloak:
-        condition: service_started
+        condition: service_healthy
     environment:
       - SPRING_CONFIG_IMPORT=optional:configserver:http://config-service:9999
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8083/actuator/health" ]
       interval: 10s
-      retries: 10
-      start_period: 40s
+      retries: 15
+      start_period: 60s
 
   gateway-service:
     build: ./gateway-service
@@ -105,7 +116,10 @@ services:
       - "8888:8888"
     networks:
       - emsi-network
+    restart: on-failure
     depends_on:
+      config-service:
+        condition: service_healthy
       discovery-service:
         condition: service_healthy
       customer-service:
@@ -115,16 +129,22 @@ services:
       billing-service:
         condition: service_healthy
       keycloak:
-        condition: service_started
+        condition: service_healthy
     environment:
       - SPRING_CONFIG_IMPORT=optional:configserver:http://config-service:9999
       - DISCOVERY_LOCATOR_ENABLED=true
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8888/actuator/health" ]
+      interval: 10s
+      retries: 15
+      start_period: 60s
 
   # --- Keycloak & Database ---
 
   postgres-keycloak:
     image: postgres:15
     container_name: postgres-keycloak
+    restart: always
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
@@ -133,10 +153,16 @@ services:
       - postgres_keycloak_data:/var/lib/postgresql/data
     networks:
       - emsi-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U keycloak -d keycloak" ]
+      interval: 10s
+      retries: 10
+      start_period: 20s
 
   keycloak:
     image: quay.io/keycloak/keycloak:23.0.0
     container_name: keycloak
+    restart: on-failure
     # MODIFICATION ICI : Suppression de --import-realm
     command: start-dev
     environment:
@@ -147,34 +173,52 @@ services:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
       KC_HTTP_PORT: 8080
+      KC_HEALTH_ENABLED: true
     ports:
       - "8080:8080"
     # MODIFICATION ICI : Section volumes commentée pour le démarrage à zéro
     # volumes:
     #   - ./keycloak-data/import:/opt/keycloak/data/import
     depends_on:
-      - postgres-keycloak
+      postgres-keycloak:
+        condition: service_healthy
     networks:
       - emsi-network
+    healthcheck:
+      test: [ "CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'" ]
+      interval: 15s
+      retries: 15
+      start_period: 90s
+      timeout: 10s
 
   # --- Kafka & Zookeeper ---
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
     container_name: zookeeper
+    restart: on-failure
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      # Enable 4-letter commands for health checks
+      KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=ruok,stat,srvr"
     networks:
       - emsi-network
+    healthcheck:
+      test: [ "CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok" ]
+      interval: 10s
+      retries: 15
+      start_period: 30s
 
   kafka:
     image: confluentinc/cp-kafka:7.3.0
     container_name: kafka
+    restart: on-failure
     ports:
       - "9092:9092"
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
@@ -186,6 +230,11 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
     networks:
       - emsi-network
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092" ]
+      interval: 15s
+      retries: 10
+      start_period: 40s
 
 networks:
   emsi-network:

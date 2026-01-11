@@ -67,6 +67,7 @@ public class BillRestController {
     /**
      * Crée une nouvelle facture pour le client authentifié.
      * L'ID du client est récupéré automatiquement via le token JWT.
+     * Valide les stocks avant de créer la facture.
      */
     @PostMapping(path = "/bills")
     @ResponseStatus(HttpStatus.CREATED)
@@ -75,6 +76,30 @@ public class BillRestController {
         
         // Récupérer l'ID du client depuis le token JWT
         Long customerId = customerRestClient.getCurrentCustomer(authorization).getId();
+        
+        // ========== VALIDATION DES STOCKS ==========
+        if (request.getProductItems() != null) {
+            for (var item : request.getProductItems()) {
+                // Récupérer l'état réel du stock depuis inventory-service
+                var product = productRestClient.getProductById(item.getProductId(), authorization);
+                
+                if (product == null) {
+                    throw new IllegalArgumentException(
+                        "Produit introuvable: " + item.getProductId()
+                    );
+                }
+                
+                // Vérifier si le stock est suffisant
+                if (product.getQuantity() < item.getQuantity()) {
+                    throw new IllegalArgumentException(
+                        "Rupture de stock pour le produit '" + product.getName() + "' (ID: " + product.getId() + 
+                        ") : Seulement " + product.getQuantity() + " disponible(s), " + 
+                        item.getQuantity() + " demandé(s)."
+                    );
+                }
+            }
+        }
+        // ============================================
         
         // Créer la facture avec la date actuelle
         Bill bill = Bill.builder()

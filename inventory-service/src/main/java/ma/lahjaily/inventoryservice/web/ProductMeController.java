@@ -2,6 +2,9 @@ package ma.lahjaily.inventoryservice.web;
 
 import ma.lahjaily.inventoryservice.entities.Product;
 import ma.lahjaily.inventoryservice.repository.ProductRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +20,23 @@ public class ProductMeController {
 
     public ProductMeController(ProductRepository productRepository) {
         this.productRepository = productRepository;
+    }
+
+    // Public: Get all products (paginated)
+    @GetMapping
+    public Page<Product> getAllProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return productRepository.findAll(pageable);
+    }
+
+    // Public: Get a single product by ID
+    @GetMapping("/{id}")
+    public ResponseEntity<Product> getProduct(@PathVariable String id) {
+        return productRepository.findById(id)
+            .map(ResponseEntity::ok)
+            .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/me")

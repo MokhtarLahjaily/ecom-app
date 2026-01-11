@@ -18,7 +18,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/eureka/**", "/actuator/**").permitAll()
-                        .requestMatchers("/api/customers/me").authenticated()
+                        .requestMatchers("/api/customers/search/current-user").authenticated()
                         .requestMatchers("/api/customers/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter)));

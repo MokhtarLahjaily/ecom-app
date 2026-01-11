@@ -17,7 +17,7 @@ public class MeController {
         this.customerRepository = customerRepository;
     }
 
-    @GetMapping("/me")
+    @GetMapping("/search/current-user")
     public Customer getOrCreateForCurrentUser(JwtAuthenticationToken jwt) {
         String sub = jwt.getToken().getClaimAsString("sub");
         String preferredUsername = jwt.getToken().getClaimAsString("preferred_username");

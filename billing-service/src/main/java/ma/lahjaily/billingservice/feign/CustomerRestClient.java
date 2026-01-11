@@ -18,7 +18,7 @@ public interface CustomerRestClient {
     @GetMapping("/api/customers")
     PagedModel<Customer> getAllCustomers(@RequestHeader("Authorization") String authorization);
 
-    @GetMapping("/api/customers/me")
+    @GetMapping("/api/customers/search/current-user")
     Customer getCurrentCustomer(@RequestHeader("Authorization") String authorization);
 
 }

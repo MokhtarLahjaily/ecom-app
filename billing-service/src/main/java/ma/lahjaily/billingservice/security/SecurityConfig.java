@@ -17,7 +17,10 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/eureka/**", "/actuator/**").permitAll()
-                .requestMatchers("/bills/me").authenticated()
+                .requestMatchers("/bills/search/by-user").authenticated()
+                .requestMatchers("/bills").authenticated()
+                // Allow any authenticated user to view bill details (controller handles authorization)
+                .requestMatchers("/bills/{id}").authenticated()
                 .requestMatchers("/bills/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )

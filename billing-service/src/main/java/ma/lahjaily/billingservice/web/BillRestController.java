@@ -31,10 +31,25 @@ public class BillRestController {
         this.customerRestClient = customerRestClient;
         this.productRestClient = productRestClient;
     }
+    
     @GetMapping(path = "/bills/{id}")
     public Bill getBill(@PathVariable Long id, JwtAuthenticationToken jwt){
         String authorization = "Bearer " + jwt.getToken().getTokenValue();
-        Bill bill = billRepository.findById(id).get();
+        Bill bill = billRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Bill not found"));
+        
+        // Check if user is admin or owns this bill
+        boolean isAdmin = jwt.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        
+        if (!isAdmin) {
+            // Verify the bill belongs to the current user
+            Long currentCustomerId = customerRestClient.getCurrentCustomer(authorization).getId();
+            if (bill.getCustomerId() != currentCustomerId) {
+                throw new RuntimeException("Access denied: You can only view your own bills");
+            }
+        }
+        
         bill.setCustomer(customerRestClient.getCustomerById(bill.getCustomerId(), authorization));
         bill.getProductItems().forEach(productItem -> {
             productItem.setProduct(productRestClient.getProductById(productItem.getProductId(), authorization));
@@ -42,7 +57,7 @@ public class BillRestController {
         return bill;
     }
 
-    @GetMapping(path = "/bills/me")
+    @GetMapping(path = "/bills/search/by-user")
     public java.util.List<Bill> myBills(JwtAuthenticationToken jwt) {
         String authorization = "Bearer " + jwt.getToken().getTokenValue();
         Long customerId = customerRestClient.getCurrentCustomer(authorization).getId();

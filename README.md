@@ -107,6 +107,7 @@ Ce projet a été réalisé dans le cadre du cours **J2EE** sous la supervision 
 | **Customer Service** | Gestion des clients | 8081 |
 | **Inventory Service** | Gestion des produits et stocks | 8082 |
 | **Billing Service** | Gestion des factures avec OpenFeign | 8083 |
+| **Analytics Service** | Statistiques temps réel avec Kafka Streams | 8084 |
 
 ---
 
@@ -257,6 +258,7 @@ cd ../gateway-service
 | **Eureka Dashboard** | http://localhost:8761 | Service Discovery |
 | **Config Server** | http://localhost:9999 | Configuration centralisée |
 | **Keycloak** | http://localhost:8080 | Console d'administration IAM |
+| **Analytics API** | http://localhost:8084 | API Statistiques temps réel |
 
 ---
 
@@ -486,6 +488,86 @@ Créer un client pour l'application frontend Angular :
 
 ---
 
+### 9️⃣ Analytics Service - Kafka Streams
+
+#### Architecture Analytics avec Kafka
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                    FLUX KAFKA ANALYTICS                              │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐   │
+│  │ Inventory Service │─────▶│   Kafka Topic   │─────▶│Analytics Service│   │
+│  │     :8082         │      │  visite-topic   │      │     :8084       │   │
+│  └─────────────────┘      └─────────────────┘      └────────┴────────┘   │
+│         │                                               │                │
+│         │ PageEvent                           Kafka Streams               │
+│         │ - name: "product-view"                        │                │
+│         │ - user: "anonymous"                           │                │
+│         │ - date: timestamp                             ▼                │
+│         │ - duration: 876ms               ┌──────────────────────┐      │
+│         │                                  │   RocksDB State    │      │
+│         ▼                                  │      Store         │      │
+│  ┌─────────────────┐                      │   "count-store"    │      │
+│  │  StreamBridge   │                      └──────────┬───────────┘      │
+│  │   Producer      │                                 │                   │
+│  └─────────────────┘                                 ▼                   │
+│                                            ┌──────────────────────┐      │
+│                                            │  Interactive Query │      │
+│                                            │      Service       │      │
+│                                            └──────────┬───────────┘      │
+│                                                       │                   │
+│                                                       ▼                   │
+│                                            ┌──────────────────────┐      │
+│                                            │   REST API         │      │
+│                                            │  /api/analytics    │      │
+│  ┌─────────────────┐                      └──────────┬───────────┘      │
+│  │ Angular Frontend│◀────────────────────────────┘                   │
+│  │ Analytics Chart │           Polling every 5s                         │
+│  └─────────────────┘                                                      │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+> **📸 Figure 26** : Architecture du flux Analytics avec Kafka Streams. L'**Inventory Service** publie des événements `PageEvent` sur le topic `visite-topic` à chaque consultation de produit. L'**Analytics Service** consomme ces événements avec **Kafka Streams**, les agrège par fenêtres temporelles de 5 minutes, et stocke les comptages dans un **State Store RocksDB**. L'API REST expose ces statistiques via **Interactive Query Service**.
+
+#### Composants Clés du Analytics Service
+
+| Composant | Description |
+|-----------|-------------|
+| **PageEventHandler** | Consumer, Supplier, et KStream pour le traitement des événements |
+| **AnalyticsController** | API REST avec endpoints snapshot et SSE streaming |
+| **KStream** | Traitement temps réel : filter → map → groupByKey → windowedBy → count |
+| **State Store** | RocksDB pour stockage des agrégations (count-store) |
+| **Interactive Query** | Interrogation du State Store pour les statistiques |
+
+#### Dashboard Analytics Frontend
+
+![Admin Kafka Analytics Page](analytics-service/captures/admin-kafka-analytics-page.png)
+
+> **📸 Figure 27** : Dashboard Analytics dans l'application Angular. Les graphiques affichent les **statistiques de visites produits en temps réel**, agrégées par l'analytics-service via Kafka Streams. Les données sont rafraîchies toutes les 5 secondes.
+
+---
+
+#### Flux Kafka Fonctionnel
+
+![Functional Kafka](analytics-service/captures/functionnal-kafka.png)
+
+> **📸 Figure 28** : Démonstration du flux Kafka fonctionnel de bout en bout. Les événements `PageEvent` sont publiés par inventory-service, consommés et agrégés par analytics-service, puis affichés dans le frontend Angular.
+
+#### Configuration Kafka Streams
+
+```properties
+# analytics-service.properties
+spring.cloud.stream.bindings.kStream-in-0.destination=visite-topic
+spring.cloud.stream.bindings.pageEventConsumer-in-0.destination=visite-topic
+spring.cloud.stream.kafka.streams.binder.configuration.default.key.serde=org.apache.kafka.common.serialization.Serdes$StringSerde
+spring.cloud.stream.kafka.streams.binder.configuration.default.value.serde=org.springframework.kafka.support.serializer.JsonSerde
+```
+
+---
+
 ## 📡 API Endpoints
 
 Tous les endpoints sont accessibles via la Gateway (`http://localhost:8888`).
@@ -510,6 +592,15 @@ GET    /CUSTOMER-SERVICE/api/customers/search/current-user  # Client courant
 ```http
 GET    /BILLING-SERVICE/api/bills/{id}           # Détail facture
 GET    /BILLING-SERVICE/api/bills                # Liste factures
+```
+
+### 📊 Analytics (Analytics Service - Port 8084)
+```http
+GET    /api/analytics/snapshot                   # Statistiques agrégées (10 dernières minutes)
+GET    /api/analytics/stream                     # Flux SSE temps réel
+GET    /analytics                                # Stream SSE principal (1 émission/seconde)
+GET    /publish?name=P1&topic=visite-topic       # Publier un événement de test
+GET    /api/analytics/health                     # Health check du service
 ```
 
 ---
@@ -566,6 +657,11 @@ Ce projet a été réalisé en suivant les tutoriels du **Prof. Mohamed YOUSSFI*
 - [x] Intégration Keycloak pour l'authentification OAuth2/OIDC
 - [x] Containerisation avec Docker Compose
 - [x] Intégration Apache Kafka
+- [x] Création du micro-service `analytics-service` avec Kafka Streams
+- [x] Implémentation Consumer/Supplier/KStream pour traitement temps réel
+- [x] State Store RocksDB pour agrégations fenêtrées
+- [x] API REST avec Interactive Query Service
+- [x] Configuration CORS pour accès frontend Angular
 
 ---
 
@@ -580,6 +676,9 @@ Ce projet a été réalisé en suivant les tutoriels du **Prof. Mohamed YOUSSFI*
 - ✅ **Health Checks Docker** avec dépendances
 - ✅ **Streaming** avec Apache Kafka
 - ✅ **Containerisation complète** avec Docker Compose
+- ✅ **Analytics temps réel** avec Kafka Streams
+- ✅ **State Store RocksDB** pour agrégations
+- ✅ **Interactive Queries** pour exposition REST
 
 ---
 

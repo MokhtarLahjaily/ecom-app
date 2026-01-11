@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/smoothie/1.34.0/smoothie.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2rem;
+            color: #00d4ff;
+        }
+        .chart-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-bottom: 20px;
+        }
+        .chart-container h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: #00d4ff;
+        }
+        canvas {
+            width: 100% !important;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1rem;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+        .stat-value.p1 { color: rgba(0, 255, 0, 1); }
+        .stat-value.p2 { color: rgba(255, 0, 0, 1); }
+        .stat-label {
+            font-size: 1rem;
+            color: #aaa;
+            margin-top: 5px;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin-top: 20px;
+            border-radius: 8px;
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+        }
+        .status.error {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid rgba(255, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Real-Time Page Analytics</h1>
+        
+        <div class="chart-container">
+            <h2>📈 Page Views (Live Stream)</h2>
+            <canvas id="chart2" width="600" height="400"></canvas>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(0, 255, 0, 1);"></div>
+                    <span>P1 (Page 1)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(255, 0, 0, 1);"></div>
+                    <span>P2 (Page 2)</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value p1" id="p1Count">0</div>
+                <div class="stat-label">Page P1 Views</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value p2" id="p2Count">0</div>
+                <div class="stat-label">Page P2 Views</div>
+            </div>
+        </div>
+        
+        <div class="status" id="status">
+            🔄 Connecting to analytics stream...
+        </div>
+    </div>
+
+    <script>
+        // Configuration - Pages P1 et P2 (comme dans le référentiel)
+        var index = -1;
+        var pages = ["P1", "P2"];
+        var colors = [
+            { stroke: 'rgba(0, 255, 0, 1)', fill: 'rgba(0, 255, 0, 0.2)' },
+            { stroke: 'rgba(255, 0, 0, 1)', fill: 'rgba(255, 0, 0, 0.2)' }
+        ];
+        
+        var randomColor = function() {
+            ++index;
+            if (index >= colors.length) index = 0;
+            return colors[index];
+        };
+
+        // Initialize Smoothie Chart
+        var courbe = [];
+        var smoothieChart = new SmoothieChart({
+            responsive: true,
+            tooltip: true,
+            grid: {
+                strokeStyle: 'rgba(255, 255, 255, 0.1)',
+                fillStyle: 'transparent',
+                lineWidth: 1,
+                millisPerLine: 1000,
+                verticalSections: 4
+            },
+            labels: {
+                fillStyle: '#fff'
+            }
+        });
+        
+        smoothieChart.streamTo(document.getElementById("chart2"), 500);
+
+        // Create time series for each page (P1, P2)
+        pages.forEach(function(v) {
+            courbe[v] = new TimeSeries();
+            var col = randomColor();
+            smoothieChart.addTimeSeries(courbe[v], {
+                strokeStyle: col.stroke,
+                fillStyle: col.fill,
+                lineWidth: 2
+            });
+        });
+
+        // Connect to SSE endpoint /analytics
+        var statusElement = document.getElementById('status');
+        var stockEventSource = new EventSource("/analytics");
+        
+        stockEventSource.onopen = function() {
+            statusElement.className = 'status';
+            statusElement.textContent = '✅ Connected to analytics stream';
+        };
+        
+        stockEventSource.onerror = function() {
+            statusElement.className = 'status error';
+            statusElement.textContent = '❌ Connection error - Retrying...';
+        };
+
+        stockEventSource.addEventListener("message", function(event) {
+            var data = JSON.parse(event.data);
+            var now = new Date().getTime();
+            
+            pages.forEach(function(v) {
+                var val = data[v] || 0;
+                courbe[v].append(now, val);
+            });
+            
+            // Update stats
+            document.getElementById('p1Count').textContent = data['P1'] || 0;
+            document.getElementById('p2Count').textContent = data['P2'] || 0;
+        });
+    </script>
+</body>
+</html>

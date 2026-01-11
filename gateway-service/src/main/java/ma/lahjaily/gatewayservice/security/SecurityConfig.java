@@ -25,6 +25,9 @@ public class SecurityConfig {
                 // Allow public read access to products
                 .pathMatchers(HttpMethod.GET, "/inventory-service/api/products/**").permitAll()
                 .pathMatchers(HttpMethod.GET, "/inventory-service/api/products").permitAll()
+                // Allow public access to analytics (for dashboard)
+                .pathMatchers(HttpMethod.GET, "/ANALYTICS-SERVICE/**").permitAll()
+                .pathMatchers(HttpMethod.GET, "/analytics-service/**").permitAll()
                 // All other requests require authentication
                 .anyExchange().authenticated()
             )

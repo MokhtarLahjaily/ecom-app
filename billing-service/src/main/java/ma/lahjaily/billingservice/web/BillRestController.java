@@ -3,16 +3,19 @@ package ma.lahjaily.billingservice.web;
 
 import ma.lahjaily.billingservice.dto.CreateBillRequest;
 import ma.lahjaily.billingservice.entities.Bill;
+import ma.lahjaily.billingservice.entities.PageEvent;
 import ma.lahjaily.billingservice.entities.ProductItem;
 import ma.lahjaily.billingservice.feign.CustomerRestClient;
 import ma.lahjaily.billingservice.feign.ProductRestClient;
 import ma.lahjaily.billingservice.repository.BillRepository;
 import ma.lahjaily.billingservice.repository.ProductItemRepository;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
+import java.util.Random;
 
 @RestController
 public class BillRestController {
@@ -24,12 +27,17 @@ public class BillRestController {
     private CustomerRestClient customerRestClient;
 
     private ProductRestClient productRestClient;
+    
+    private StreamBridge streamBridge;
 
-    public BillRestController(BillRepository billRepository, ProductItemRepository productItemRepository,CustomerRestClient customerRestClient, ProductRestClient productRestClient) {
+    public BillRestController(BillRepository billRepository, ProductItemRepository productItemRepository,
+                              CustomerRestClient customerRestClient, ProductRestClient productRestClient,
+                              StreamBridge streamBridge) {
         this.billRepository = billRepository;
         this.productItemRepository = productItemRepository;
         this.customerRestClient = customerRestClient;
         this.productRestClient = productRestClient;
+        this.streamBridge = streamBridge;
     }
     
     @GetMapping(path = "/bills/{id}")
@@ -123,6 +131,19 @@ public class BillRestController {
                 productItemRepository.save(productItem);
             });
         }
+        
+        // ========== PUBLICATION ÉVÉNEMENT KAFKA ==========
+        // Envoyer un événement sur facture-topic lors de la création
+        PageEvent pageEvent = new PageEvent(
+                "bill-created",                      // Nom de l'action
+                String.valueOf(customerId),          // ID du client
+                new Date(),                          // Timestamp
+                new Random().nextInt(1000) + 100     // Durée simulée
+        );
+        
+        streamBridge.send("facture-topic", pageEvent);
+        System.out.println("📤 [KAFKA] Événement publié sur facture-topic: " + pageEvent);
+        // =================================================
         
         // Recharger la facture avec ses items
         return billRepository.findById(bill.getId()).orElse(bill);
